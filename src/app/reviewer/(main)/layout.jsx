@@ -38,11 +38,6 @@ const menuItems = [
     icon: CalendarDays,
   },
   {
-    label: "Review Dokumen",
-    href: "/reviewer/documents",
-    icon: FileText,
-  },
-  {
     label: "Penilaian & Feedback",
     href: "/reviewer/evaluations",
     icon: ClipboardCheck,

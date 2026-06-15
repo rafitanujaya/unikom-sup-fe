@@ -4,16 +4,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
-  BookOpenCheck,
-  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock3,
-  Eye,
-  FileText,
-  GraduationCap,
   History,
+  Search,
+  X,
   XCircle,
 } from "lucide-react";
 
@@ -81,7 +78,7 @@ const submissionHistory = [
     seminarDate: "22 Februari 2026",
     room: "R5220",
     reviewers: "3 Dosen",
-    status: "verified",
+    status: "passed",
     result: "Lulus",
     note: "Pengajuan telah selesai dan hasil seminar sudah tersedia.",
   },
@@ -120,279 +117,331 @@ const submissionHistory = [
     seminarDate: "12 Januari 2026",
     room: "R5102",
     reviewers: "3 Dosen",
-    status: "verified",
+    status: "passed",
     result: "Lulus",
     note: "Pengajuan telah selesai dan hasil seminar sudah tersedia.",
   },
 ];
 
-const historyStats = [
-  {
-    label: "Total Pengajuan",
-    value: submissionHistory.length,
-    icon: History,
-  },
-  {
-    label: "Pengajuan Aktif",
-    value: submissionHistory.filter((item) => item.status === "processing").length,
-    icon: Clock3,
-  },
-  {
-    label: "Terverifikasi",
-    value: submissionHistory.filter((item) => item.status === "verified").length,
-    icon: CheckCircle2,
-  },
-  {
-    label: "Tidak Lulus / Ditolak",
-    value: submissionHistory.filter((item) => ["failed", "rejected"].includes(item.status)).length,
-    icon: XCircle,
-  },
-];
-
-function getStatusStyle(status) {
-  if (status === "verified") {
+function getResultStyle(result) {
+  if (result === "Lulus") {
     return {
-      label: "Terverifikasi",
-      badge: "bg-green-50 text-green-600",
+      badge: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+      iconBox: "bg-emerald-50 text-emerald-600 ring-emerald-100",
       icon: CheckCircle2,
-      iconBox: "bg-green-50 text-green-600",
     };
   }
 
-  if (status === "failed") {
+  if (result === "Tidak Lulus") {
     return {
-      label: "Tidak Lulus",
-      badge: "bg-red-50 text-red-600",
+      badge: "bg-red-50 text-red-700 ring-red-100",
+      iconBox: "bg-red-50 text-red-600 ring-red-100",
       icon: XCircle,
-      iconBox: "bg-red-50 text-red-600",
     };
   }
 
-  if (status === "rejected") {
+  if (result === "Ditolak Administratif") {
     return {
-      label: "Ditolak",
-      badge: "bg-amber-50 text-amber-600",
+      badge: "bg-amber-50 text-amber-700 ring-amber-100",
+      iconBox: "bg-amber-50 text-amber-600 ring-amber-100",
       icon: AlertTriangle,
-      iconBox: "bg-amber-50 text-amber-600",
+    };
+  }
+
+  if (result === "Menunggu Seminar") {
+    return {
+      badge: "bg-blue-50 text-primary ring-blue-100",
+      iconBox: "bg-blue-50 text-primary ring-blue-100",
+      icon: CheckCircle2,
     };
   }
 
   return {
-    label: "Diproses",
-    badge: "bg-blue-50 text-primary",
+    badge: "bg-blue-50 text-primary ring-blue-100",
+    iconBox: "bg-blue-50 text-primary ring-blue-100",
     icon: Clock3,
-    iconBox: "bg-blue-50 text-primary",
   };
 }
 
 export default function StudentHistoryPage() {
+  const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
-  const totalPages = Math.ceil(submissionHistory.length / ITEMS_PER_PAGE);
+  const filteredSubmissions = useMemo(() => {
+    const keyword = search.toLowerCase();
+
+    return submissionHistory.filter((submission) =>
+      submission.title.toLowerCase().includes(keyword),
+    );
+  }, [search]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredSubmissions.length / ITEMS_PER_PAGE),
+  );
 
   const paginatedSubmissions = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
 
-    return submissionHistory.slice(startIndex, endIndex);
-  }, [currentPage]);
+    return filteredSubmissions.slice(startIndex, endIndex);
+  }, [currentPage, filteredSubmissions]);
 
-  const startItem = (currentPage - 1) * ITEMS_PER_PAGE + 1;
-  const endItem = Math.min(currentPage * ITEMS_PER_PAGE, submissionHistory.length);
+  const startItem =
+    filteredSubmissions.length === 0
+      ? 0
+      : (currentPage - 1) * ITEMS_PER_PAGE + 1;
 
-  const goToPage = (page) => {
+  const endItem = Math.min(
+    currentPage * ITEMS_PER_PAGE,
+    filteredSubmissions.length,
+  );
+
+  function handleSearchChange(value) {
+    setSearch(value);
+    setCurrentPage(1);
+  }
+
+  function goToPage(page) {
     if (page < 1 || page > totalPages) return;
     setCurrentPage(page);
-  };
+  }
 
   return (
-    <>
+    <div className="pb-8 font-[Poppins]">
       <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h2 className="text-3xl font-semibold tracking-[-0.03em] text-slate-900">
+          <h2 className="text-3xl font-semibold tracking-[-0.03em] text-slate-950">
             Riwayat SUP
           </h2>
+
           <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500">
-            Lihat seluruh riwayat pengajuan SUP, termasuk pengajuan aktif, pengajuan yang ditolak, dan hasil pengajuan sebelumnya.
+            Lihat riwayat pengajuan SUP yang pernah kamu ajukan.
           </p>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {historyStats.map((item) => {
-          const Icon = item.icon;
+      <section className="overflow-hidden rounded-[2rem] border border-blue-100 bg-white shadow-sm shadow-blue-100/30">
+        <div className="border-b border-blue-100 p-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-xl font-semibold tracking-tight text-slate-950">
+                  Daftar Riwayat
+                </h3>
 
-          return (
-            <div
-              key={item.label}
-              className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-primary">
-                <Icon size={22} />
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-primary ring-1 ring-blue-100">
+                  {filteredSubmissions.length} riwayat
+                </span>
               </div>
-              <p className="mt-5 text-sm text-slate-500">{item.label}</p>
-              <h3 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
-                {item.value}
-              </h3>
+
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                Riwayat pengajuan ditampilkan dari yang terbaru.
+              </p>
             </div>
-          );
-        })}
-      </div>
 
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-500">
-          Menampilkan <span className="font-semibold text-slate-800">{startItem}-{endItem}</span> dari{" "}
-          <span className="font-semibold text-slate-800">{submissionHistory.length}</span> riwayat pengajuan
-        </p>
-
-        <p className="text-sm text-slate-400">
-          {ITEMS_PER_PAGE} data per halaman
-        </p>
-      </div>
-
-      <div className="mt-4 space-y-4">
-        {paginatedSubmissions.map((submission) => {
-          const status = getStatusStyle(submission.status);
-          const StatusIcon = status.icon;
-
-          return (
-            <article
-              key={submission.id}
-              className="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200 transition-all duration-300 hover:ring-blue-100"
-            >
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                <div className="flex min-w-0 gap-4">
-                  <div
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${status.iconBox}`}
-                  >
-                    <StatusIcon size={22} />
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
-                        {submission.attempt}
-                      </p>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${status.badge}`}>
-                        {status.label}
-                      </span>
-                    </div>
-
-                    <h3 className="mt-2 max-w-4xl text-xl font-semibold tracking-tight text-slate-950">
-                      {submission.title}
-                    </h3>
-
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                      {submission.note}
-                    </p>
-                  </div>
-                </div>
-
-                <Link
-                  href={`/student/history/${submission.id}`}
-                  className="inline-flex h-11 w-fit shrink-0 items-center justify-center gap-2 rounded-2xl bg-blue-50 px-4 text-sm font-semibold text-primary ring-1 ring-blue-100 transition-all duration-300 hover:bg-blue-100 hover:text-primary-dark"
-                >
-                  <Eye size={17} />
-                  Detail
-                </Link>
-              </div>
-
-              <div className="mt-6 grid gap-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100 md:grid-cols-2 xl:grid-cols-4">
-                <HistoryInfo icon={FileText} label="ID Pengajuan" value={submission.id} />
-                <HistoryInfo icon={CalendarDays} label="Tanggal Pengajuan" value={submission.submittedAt} />
-                <HistoryInfo icon={CalendarDays} label="Jadwal Seminar" value={submission.seminarDate} />
-                <HistoryInfo icon={BookOpenCheck} label="Hasil" value={submission.result} />
-              </div>
-
-              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <SmallInfo icon={CheckCircle2} label="Terverifikasi Pada" value={submission.verifiedAt} />
-                <SmallInfo icon={GraduationCap} label="Reviewer" value={submission.reviewers} />
-                <SmallInfo icon={CalendarDays} label="Ruangan" value={submission.room} />
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      {totalPages > 1 && (
-        <div className="mt-6 flex flex-col gap-4 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-slate-500">
-            Halaman <span className="font-semibold text-slate-900">{currentPage}</span> dari{" "}
-            <span className="font-semibold text-slate-900">{totalPages}</span>
-          </p>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl bg-slate-50 text-slate-600 ring-1 ring-slate-200 transition-all duration-300 hover:bg-blue-50 hover:text-primary disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-300"
-              aria-label="Halaman sebelumnya"
-            >
-              <ChevronLeft size={18} />
-            </button>
-
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => goToPage(page)}
-                className={`h-10 min-w-10 cursor-pointer rounded-2xl px-3 text-sm font-semibold transition-all duration-300 ${
-                  currentPage === page
-                    ? "bg-primary text-white shadow-lg shadow-blue-600/20"
-                    : "bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-blue-50 hover:text-primary"
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl bg-slate-50 text-slate-600 ring-1 ring-slate-200 transition-all duration-300 hover:bg-blue-50 hover:text-primary disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-300"
-              aria-label="Halaman berikutnya"
-            >
-              <ChevronRight size={18} />
-            </button>
+            <SearchInput value={search} onChange={handleSearchChange} />
           </div>
         </div>
-      )}
-    </>
+
+        {filteredSubmissions.length > 0 ? (
+          <>
+            <div className="divide-y divide-blue-100">
+              {paginatedSubmissions.map((submission) => (
+                <HistoryListItem key={submission.id} submission={submission} />
+              ))}
+            </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              startItem={startItem}
+              endItem={endItem}
+              totalItems={filteredSubmissions.length}
+              onPrevious={() => goToPage(currentPage - 1)}
+              onNext={() => goToPage(currentPage + 1)}
+              onPageChange={goToPage}
+            />
+          </>
+        ) : (
+          <EmptyHistory />
+        )}
+      </section>
+    </div>
   );
 }
 
-function HistoryInfo({ icon: Icon, label, value }) {
+function SearchInput({ value, onChange }) {
   return (
-    <div className="flex gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-primary ring-1 ring-blue-100">
-        <Icon size={18} />
+    <label className="relative block w-full xl:max-w-md">
+      <Search
+        size={18}
+        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+      />
+
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Cari judul pengajuan..."
+        className="h-11 w-full rounded-2xl border border-blue-100 bg-[#F8FBFF] pl-11 pr-11 text-sm font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:bg-white focus:ring-4 focus:ring-blue-100"
+      />
+
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-blue-50 hover:text-primary"
+          aria-label="Hapus pencarian"
+        >
+          <X size={16} />
+        </button>
+      )}
+    </label>
+  );
+}
+
+function HistoryListItem({ submission }) {
+  const resultStyle = getResultStyle(submission.result);
+  const ResultIcon = resultStyle.icon;
+
+  return (
+    <article className="group p-5 transition hover:bg-blue-50/40">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 gap-4">
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ${resultStyle.iconBox}`}
+          >
+            <ResultIcon size={20} />
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                {submission.attempt}
+              </p>
+
+              <span
+                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${resultStyle.badge}`}
+              >
+                {submission.result}
+              </span>
+            </div>
+
+            <h4 className="mt-2 max-w-4xl text-base font-semibold leading-6 text-slate-950">
+              {submission.title}
+            </h4>
+
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
+              <span>
+                Diajukan:{" "}
+                <span className="font-semibold text-slate-700">
+                  {submission.submittedAt}
+                </span>
+              </span>
+
+              {submission.seminarDate !== "-" && (
+                <span>
+                  Jadwal:{" "}
+                  <span className="font-semibold text-slate-700">
+                    {submission.seminarDate}
+                  </span>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <Link
+          href={`/student/history/${submission.id}`}
+          className="inline-flex w-fit shrink-0 items-center gap-1 rounded-xl px-2 py-1 text-sm font-semibold text-primary transition hover:bg-blue-50 hover:text-primary-dark"
+        >
+          Detail
+          <ChevronRight size={15} />
+        </Link>
       </div>
-      <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-          {label}
-        </p>
-        <p className="mt-1 truncate text-sm font-semibold text-slate-900">
-          {value}
-        </p>
+    </article>
+  );
+}
+
+function Pagination({
+  currentPage,
+  totalPages,
+  startItem,
+  endItem,
+  totalItems,
+  onPrevious,
+  onNext,
+  onPageChange,
+}) {
+  return (
+    <div className="flex flex-col gap-4 border-t border-blue-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm text-slate-500">
+        Menampilkan{" "}
+        <span className="font-semibold text-slate-800">{startItem}</span>
+        {" - "}
+        <span className="font-semibold text-slate-800">{endItem}</span>
+        {" dari "}
+        <span className="font-semibold text-slate-800">{totalItems}</span>
+        {" riwayat"}
+      </p>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={currentPage === 1}
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-100 bg-white text-slate-500 transition hover:bg-blue-50 hover:text-primary disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300"
+          aria-label="Halaman sebelumnya"
+        >
+          <ChevronLeft size={18} />
+        </button>
+
+        {Array.from({ length: totalPages }, (_, index) => index + 1).map(
+          (page) => (
+            <button
+              key={page}
+              type="button"
+              onClick={() => onPageChange(page)}
+              className={`flex h-10 min-w-10 items-center justify-center rounded-2xl px-3 text-sm font-semibold transition ${
+                currentPage === page
+                  ? "bg-primary text-white shadow-lg shadow-blue-600/20"
+                  : "text-slate-500 hover:bg-blue-50 hover:text-primary"
+              }`}
+            >
+              {page}
+            </button>
+          ),
+        )}
+
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={currentPage === totalPages}
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-100 bg-white text-slate-500 transition hover:bg-blue-50 hover:text-primary disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300"
+          aria-label="Halaman berikutnya"
+        >
+          <ChevronRight size={18} />
+        </button>
       </div>
     </div>
   );
 }
 
-function SmallInfo({ icon: Icon, label, value }) {
+function EmptyHistory() {
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500">
-        <Icon size={17} />
+    <div className="px-6 py-14 text-center">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-blue-50 text-primary ring-1 ring-blue-100">
+        <History size={24} />
       </div>
-      <div className="min-w-0">
-        <p className="text-xs text-slate-400">{label}</p>
-        <p className="mt-0.5 truncate text-sm font-semibold text-slate-800">
-          {value}
-        </p>
-      </div>
+
+      <h3 className="mt-4 text-base font-semibold text-slate-950">
+        Riwayat Tidak Ditemukan
+      </h3>
+
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+        Tidak ada riwayat pengajuan SUP yang sesuai dengan judul yang dicari.
+      </p>
     </div>
   );
 }

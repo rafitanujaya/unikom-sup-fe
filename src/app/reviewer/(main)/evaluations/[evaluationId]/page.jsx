@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -18,7 +18,8 @@ const assessmentCriteria = [
     id: "abstrak",
     label: "ABSTRAK",
     maxScore: 10,
-    helper: "Kejelasan ringkasan, fokus penelitian, dan ketepatan informasi utama.",
+    helper:
+      "Kejelasan ringkasan, fokus penelitian, dan ketepatan informasi utama.",
   },
   {
     id: "pendahuluan",
@@ -30,7 +31,8 @@ const assessmentCriteria = [
     id: "kajian_pustaka",
     label: "KAJIAN PUSTAKA",
     maxScore: 20,
-    helper: "Relevansi teori, penelitian terdahulu, dan keterhubungan dengan topik.",
+    helper:
+      "Relevansi teori, penelitian terdahulu, dan keterhubungan dengan topik.",
   },
   {
     id: "metode",
@@ -118,22 +120,32 @@ function getGrade(score) {
 
 function calculateTotal(scores) {
   return assessmentCriteria.reduce((total, criterion) => {
-    const value = Number(scores?.[criterion.id]);
+    const rawValue = scores?.[criterion.id];
+    const value = rawValue === "" ? NaN : Number(rawValue);
+
     return Number.isFinite(value) ? total + value : total;
   }, 0);
 }
 
 function countCompletedCriteria(scores) {
   return assessmentCriteria.filter((criterion) => {
-    const value = Number(scores?.[criterion.id]);
-    return Number.isFinite(value) && value >= 0;
+    const rawValue = scores?.[criterion.id];
+    const value = rawValue === "" ? NaN : Number(rawValue);
+
+    return (
+      Number.isFinite(value) && value >= 0 && value <= criterion.maxScore
+    );
   }).length;
 }
 
 function isAssessmentComplete(scores, feedback) {
   const allScoresFilled = assessmentCriteria.every((criterion) => {
-    const value = Number(scores?.[criterion.id]);
-    return Number.isFinite(value) && value >= 0 && value <= criterion.maxScore;
+    const rawValue = scores?.[criterion.id];
+    const value = rawValue === "" ? NaN : Number(rawValue);
+
+    return (
+      Number.isFinite(value) && value >= 0 && value <= criterion.maxScore
+    );
   });
 
   return allScoresFilled && feedback.trim().length > 0;
@@ -154,7 +166,11 @@ function StatusBadge({ status, statusType }) {
   };
 
   return (
-    <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${styles[statusType]}`}>
+    <span
+      className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+        styles[statusType] || styles.ongoing
+      }`}
+    >
       {status}
     </span>
   );
@@ -165,18 +181,19 @@ function DocumentReadBadge({ status }) {
 
   return (
     <span
-      className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+      className={`inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
         isUnread
           ? "bg-amber-50 text-amber-700 ring-amber-100"
           : "bg-emerald-50 text-emerald-700 ring-emerald-100"
       }`}
     >
-      {status}
+      {isUnread ? <FileText size={13} /> : <CheckCircle2 size={13} />}
+      Dokumen {status.toLowerCase()}
     </span>
   );
 }
 
-function InfoTile({ label, value, helper, children, tone = "default" }) {
+function InfoTile({ label, value, helper, tone = "default" }) {
   const toneClass = {
     default: "bg-[#F8FBFF] ring-blue-100",
     warning: "bg-amber-50 ring-amber-100",
@@ -184,14 +201,17 @@ function InfoTile({ label, value, helper, children, tone = "default" }) {
   }[tone];
 
   return (
-    <div className={`flex min-h-[124px] flex-col justify-between rounded-3xl p-4 ring-1 ${toneClass}`}>
+    <div
+      className={`flex min-h-[124px] flex-col justify-between rounded-3xl p-4 ring-1 ${toneClass}`}
+    >
       <div>
         <p className="text-xs font-medium text-slate-400">{label}</p>
         {value && <div className="mt-2">{value}</div>}
       </div>
 
-      {helper && <div className="mt-3 text-xs leading-5 text-slate-500">{helper}</div>}
-      {children && <div className="mt-3">{children}</div>}
+      {helper && (
+        <div className="mt-3 text-xs leading-5 text-slate-500">{helper}</div>
+      )}
     </div>
   );
 }
@@ -201,14 +221,20 @@ function ScoreInput({ criterion, value, disabled, onChange }) {
     <div className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm shadow-blue-100/20">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-950">{criterion.label}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-500">{criterion.helper}</p>
+          <p className="text-sm font-semibold text-slate-950">
+            {criterion.label}
+          </p>
+
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            {criterion.helper}
+          </p>
         </div>
 
         <div className="shrink-0 lg:w-36">
           <label className="text-xs font-medium text-slate-400">
             Nilai / {criterion.maxScore}
           </label>
+
           <input
             type="number"
             min="0"
@@ -225,49 +251,35 @@ function ScoreInput({ criterion, value, disabled, onChange }) {
   );
 }
 
-function NotFoundState() {
-  return (
-    <div className="flex min-h-[520px] items-center justify-center rounded-[2rem] border border-dashed border-blue-200 bg-white p-10 text-center shadow-sm shadow-blue-100/20">
-      <div>
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-blue-50 text-[#0B63CE] ring-1 ring-blue-100">
-          <AlertCircle size={34} />
-        </div>
-        <p className="mt-6 text-lg font-semibold text-slate-950">
-          Data penilaian tidak ditemukan
-        </p>
-        <p className="mt-2 max-w-lg text-sm leading-6 text-slate-500">
-          Sidang yang diminta tidak tersedia atau sudah tidak membutuhkan penilaian.
-        </p>
-        <Link
-          href="/reviewer/evaluations"
-          className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#0B63CE] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
-        >
-          <ArrowLeft size={16} />
-          Kembali ke Daftar Penilaian
-        </Link>
-      </div>
-    </div>
-  );
-}
-
 export default function ReviewerEvaluationDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const sessionId = Array.isArray(params?.sessionId)
-    ? params.sessionId[0]
-    : params?.sessionId;
 
-  const item = useMemo(
-    () => evaluationItems.find((evaluation) => evaluation.id === sessionId),
-    [sessionId]
-  );
+  const requestId = useMemo(() => {
+    const rawId = params?.sessionId || params?.id;
 
-  const [scores, setScores] = useState(item?.scores || {});
-  const [feedback, setFeedback] = useState(item?.feedback || "");
+    if (Array.isArray(rawId)) {
+      return decodeURIComponent(String(rawId[0] || ""));
+    }
 
-  if (!item) {
-    return <NotFoundState />;
-  }
+    return decodeURIComponent(String(rawId || ""));
+  }, [params?.sessionId, params?.id]);
+
+  const item = useMemo(() => {
+    const foundEvaluation = evaluationItems.find(
+      (evaluation) => evaluation.id === requestId,
+    );
+
+    return foundEvaluation || evaluationItems[0];
+  }, [requestId]);
+
+  const [scores, setScores] = useState(item.scores);
+  const [feedback, setFeedback] = useState(item.feedback);
+
+  useEffect(() => {
+    setScores(item.scores);
+    setFeedback(item.feedback);
+  }, [item]);
 
   const total = calculateTotal(scores);
   const completedCriteria = countCompletedCriteria(scores);
@@ -277,7 +289,10 @@ export default function ReviewerEvaluationDetailPage() {
   const canSubmit = isComplete && isDocumentRead && !isLocked;
 
   function handleScoreChange(criterionId, rawValue) {
-    const criterion = assessmentCriteria.find((entry) => entry.id === criterionId);
+    const criterion = assessmentCriteria.find(
+      (entry) => entry.id === criterionId,
+    );
+
     const numericValue = rawValue === "" ? "" : Number(rawValue);
 
     const safeValue =
@@ -285,7 +300,10 @@ export default function ReviewerEvaluationDetailPage() {
         ? ""
         : Math.max(
             0,
-            Math.min(Number.isFinite(numericValue) ? numericValue : 0, criterion.maxScore)
+            Math.min(
+              Number.isFinite(numericValue) ? numericValue : 0,
+              criterion.maxScore,
+            ),
           );
 
     setScores((current) => ({
@@ -311,13 +329,15 @@ export default function ReviewerEvaluationDetailPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-slate-950 md:text-3xl">
               Isi Nilai & Feedback
             </h1>
+
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 md:text-base">
-              Halaman fokus untuk mengisi nilai berdasarkan kriteria penilaian dan feedback final mahasiswa.
+              Halaman fokus untuk mengisi nilai berdasarkan kriteria penilaian
+              dan feedback final mahasiswa.
             </p>
           </div>
 
           <div className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-[#0B63CE] shadow-sm ring-1 ring-blue-100">
-            {item.id}
+            Prototype Mode
           </div>
         </div>
       </section>
@@ -335,22 +355,24 @@ export default function ReviewerEvaluationDetailPage() {
               <div className="min-w-0 flex-1 pt-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <TypeBadge type={item.type} />
-                  <StatusBadge status={item.status} statusType={item.statusType} />
+                  <StatusBadge
+                    status={item.status}
+                    statusType={item.statusType}
+                  />
+                  <DocumentReadBadge status={item.documentReadStatus} />
                 </div>
 
-                <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+                <h2 className="mt-4 line-clamp-1 text-2xl font-semibold tracking-tight text-slate-950">
                   {item.studentName}
+                  <span className="mx-2 text-slate-300">-</span>
+                  <span className="text-xl font-semibold text-slate-500">
+                    {item.nim}
+                  </span>
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">NIM {item.nim}</p>
 
-                <div className="mt-4 max-w-3xl">
-                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
-                    Judul {item.type === "SUP" ? "Proposal" : "Skripsi"}
-                  </p>
-                  <p className="mt-1.5 text-base font-semibold leading-7 text-slate-950">
-                    {item.title}
-                  </p>
-                </div>
+                <p className="mt-3 max-w-3xl text-base font-semibold leading-7 text-slate-950">
+                  {item.title}
+                </p>
               </div>
             </div>
 
@@ -365,10 +387,14 @@ export default function ReviewerEvaluationDetailPage() {
         </div>
 
         <div className="border-b border-blue-100 p-5">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <InfoTile
               label="Peran Anda"
-              value={<p className="text-base font-semibold text-slate-950">{item.role}</p>}
+              value={
+                <p className="text-base font-semibold text-slate-950">
+                  {item.role}
+                </p>
+              }
               helper="Peran penelaah pada sidang ini."
             />
 
@@ -379,17 +405,11 @@ export default function ReviewerEvaluationDetailPage() {
                   <p className="text-base font-semibold text-slate-950">
                     {item.day}, {item.date}
                   </p>
+
                   <p className="mt-1 text-sm text-slate-500">{item.time}</p>
                 </div>
               }
               helper={item.location}
-            />
-
-            <InfoTile
-              label="Status Dokumen"
-              tone={isDocumentRead ? "success" : "warning"}
-              value={<DocumentReadBadge status={item.documentReadStatus} />}
-              helper={isDocumentRead ? "Dokumen sudah dibuka." : "Baca dokumen sebelum mengirim."}
             />
 
             <InfoTile
@@ -399,6 +419,7 @@ export default function ReviewerEvaluationDetailPage() {
                   <p className="text-3xl font-semibold tracking-tight text-slate-950">
                     {completedCriteria}
                   </p>
+
                   <p className="pb-1 text-sm font-medium text-slate-400">
                     / {assessmentCriteria.length}
                   </p>
@@ -414,8 +435,12 @@ export default function ReviewerEvaluationDetailPage() {
                   <p className="text-3xl font-semibold tracking-tight text-slate-950">
                     {completedCriteria > 0 ? total : "—"}
                   </p>
+
                   <p className="mt-1 text-sm font-medium text-slate-500">
-                    Huruf Mutu: {completedCriteria === assessmentCriteria.length ? getGrade(total) : "—"}
+                    Huruf Mutu:{" "}
+                    {completedCriteria === assessmentCriteria.length
+                      ? getGrade(total)
+                      : "—"}
                   </p>
                 </div>
               }
@@ -429,7 +454,9 @@ export default function ReviewerEvaluationDetailPage() {
             <div className="flex items-start gap-3">
               <FileText size={19} className="mt-0.5 shrink-0 text-amber-700" />
               <p className="text-sm leading-6 text-amber-700">
-                Dokumen belum dibaca. Penelaah tetap bisa mengisi nilai dan feedback, tetapi belum bisa mengirim sampai dokumen dibuka/dibaca.
+                Dokumen belum dibaca. Penelaah tetap bisa mengisi nilai dan
+                feedback, tetapi belum bisa mengirim sampai dokumen
+                dibuka/dibaca.
               </p>
             </div>
           </div>
@@ -438,9 +465,14 @@ export default function ReviewerEvaluationDetailPage() {
         {item.statusType === "ongoing" && (
           <div className="mx-5 mt-5 rounded-3xl bg-blue-50 p-4 ring-1 ring-blue-100">
             <div className="flex items-start gap-3">
-              <MessageSquareText size={19} className="mt-0.5 shrink-0 text-[#0B63CE]" />
+              <MessageSquareText
+                size={19}
+                className="mt-0.5 shrink-0 text-[#0B63CE]"
+              />
+
               <p className="text-sm leading-6 text-[#0B63CE]">
-                Sidang sedang berlangsung. Nilai dan feedback sudah dapat diisi sebagai catatan awal, lalu dapat dikirim saat lengkap.
+                Sidang sedang berlangsung. Nilai dan feedback sudah dapat diisi
+                sebagai catatan awal, lalu dapat dikirim saat lengkap.
               </p>
             </div>
           </div>
@@ -449,9 +481,14 @@ export default function ReviewerEvaluationDetailPage() {
         {item.statusType === "evaluation" && (
           <div className="mx-5 mt-5 rounded-3xl bg-red-50 p-4 ring-1 ring-red-100">
             <div className="flex items-start gap-3">
-              <AlertCircle size={19} className="mt-0.5 shrink-0 text-red-600" />
+              <AlertCircle
+                size={19}
+                className="mt-0.5 shrink-0 text-red-600"
+              />
+
               <p className="text-sm leading-6 text-red-600">
-                Sidang sudah selesai. Nilai dan feedback final wajib diisi sebelum proses penilaian dapat diselesaikan.
+                Sidang sudah selesai. Nilai dan feedback final wajib diisi
+                sebelum proses penilaian dapat diselesaikan.
               </p>
             </div>
           </div>
@@ -460,6 +497,7 @@ export default function ReviewerEvaluationDetailPage() {
         <div className="space-y-3 p-5">
           <div>
             <p className="text-sm font-semibold text-slate-950">Form Nilai</p>
+
             <p className="mt-1 text-sm text-slate-500">
               Isi nilai sesuai rentang maksimal setiap kriteria penilaian.
             </p>
@@ -481,6 +519,7 @@ export default function ReviewerEvaluationDetailPage() {
             <span className="text-sm font-semibold text-slate-950">
               Feedback / Catatan Revisi Final
             </span>
+
             <textarea
               value={feedback}
               disabled={isLocked}
@@ -493,7 +532,8 @@ export default function ReviewerEvaluationDetailPage() {
 
         <div className="flex flex-col gap-3 border-t border-blue-100 p-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm leading-6 text-slate-500">
-            Tombol kirim aktif jika dokumen sudah dibaca, semua nilai terisi, dan feedback final sudah diisi.
+            Kirim jika dokumen sudah dibaca, semua nilai terisi, dan feedback
+            final sudah diisi.
           </p>
 
           <div className="flex flex-wrap justify-end gap-3">

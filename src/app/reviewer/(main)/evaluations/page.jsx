@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
   CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Filter,
   MessageSquareText,
   Search,
+  X,
 } from "lucide-react";
 
 const assessmentCriteria = [
@@ -73,7 +77,6 @@ const evaluationItems = [
     },
     feedback: "",
   },
-
 ];
 
 const statusFilters = [
@@ -81,6 +84,8 @@ const statusFilters = [
   { label: "Sedang Berlangsung", value: "ongoing" },
   { label: "Perlu Final", value: "evaluation" },
 ];
+
+const ITEMS_PER_PAGE = 5;
 
 function TypeBadge({ type }) {
   return (
@@ -97,30 +102,77 @@ function StatusBadge({ status, statusType }) {
   };
 
   return (
-    <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${styles[statusType]}`}>
+    <span
+      className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+        styles[statusType]
+      }`}
+    >
       {status}
     </span>
   );
 }
 
+function ProgressBadge({ isComplete, hasDraft }) {
+  if (isComplete) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+        <CheckCircle2 size={13} />
+        Nilai Lengkap
+      </span>
+    );
+  }
+
+  if (hasDraft) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-[#0B63CE] ring-1 ring-blue-100">
+        <MessageSquareText size={13} />
+        Draft Nilai
+      </span>
+    );
+  }
+
+  return null;
+}
+
 function calculateTotal(scores) {
   return assessmentCriteria.reduce((total, criterion) => {
-    const value = Number(scores?.[criterion.id]);
+    const rawValue = scores?.[criterion.id];
+    const value = rawValue === "" ? NaN : Number(rawValue);
+
     return Number.isFinite(value) ? total + value : total;
   }, 0);
 }
 
 function countCompletedCriteria(scores) {
   return assessmentCriteria.filter((criterion) => {
-    const value = Number(scores?.[criterion.id]);
-    return Number.isFinite(value) && value >= 0;
+    const rawValue = scores?.[criterion.id];
+    const value = rawValue === "" ? NaN : Number(rawValue);
+
+    return (
+      Number.isFinite(value) && value >= 0 && value <= criterion.maxScore
+    );
   }).length;
+}
+
+function hasDraftValue(scores, feedback) {
+  const hasAnyScore = assessmentCriteria.some((criterion) => {
+    const rawValue = scores?.[criterion.id];
+    const value = rawValue === "" ? NaN : Number(rawValue);
+
+    return Number.isFinite(value);
+  });
+
+  return hasAnyScore || feedback.trim().length > 0;
 }
 
 function isAssessmentComplete(scores, feedback) {
   const allScoresFilled = assessmentCriteria.every((criterion) => {
-    const value = Number(scores?.[criterion.id]);
-    return Number.isFinite(value) && value >= 0 && value <= criterion.maxScore;
+    const rawValue = scores?.[criterion.id];
+    const value = rawValue === "" ? NaN : Number(rawValue);
+
+    return (
+      Number.isFinite(value) && value >= 0 && value <= criterion.maxScore
+    );
   });
 
   return allScoresFilled && feedback.trim().length > 0;
@@ -136,149 +188,177 @@ function getActionLabel(item, scores, feedback) {
   return complete ? "Kirim Nilai & Feedback" : "Isi Nilai & Feedback";
 }
 
-function Pagination({ currentPage, totalPages, onPageChange }) {
-  const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+function getRowDescription(item, isComplete, hasDraft) {
+  if (isComplete) {
+    return "Nilai sudah lengkap dan siap dikirim.";
+  }
+
+  if (hasDraft) {
+    return "Draft nilai sudah tersimpan, lanjutkan sampai lengkap.";
+  }
+
+  if (item.statusType === "evaluation") {
+    return "Sidang membutuhkan nilai dan feedback final.";
+  }
+
+  return "Nilai dan feedback dapat mulai dilengkapi.";
+}
+
+function SearchInput({ value, onChange }) {
+  return (
+    <label className="relative block w-full lg:w-[420px]">
+      <Search
+        size={17}
+        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+      />
+
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Cari nama, NIM, atau judul..."
+        className="h-11 w-full rounded-2xl border border-blue-100 bg-[#F8FBFF] pl-11 pr-11 text-sm font-medium text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-[#0B63CE] focus:bg-white focus:ring-4 focus:ring-blue-100"
+      />
+
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-blue-50 hover:text-[#0B63CE]"
+          aria-label="Hapus pencarian"
+        >
+          <X size={16} />
+        </button>
+      )}
+    </label>
+  );
+}
+
+function StatusFilter({ value, onChange }) {
+  return (
+    <label className="relative block w-full sm:w-[220px]">
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full appearance-none rounded-2xl border border-blue-100 bg-[#F8FBFF] px-4 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#0B63CE] focus:bg-white focus:ring-4 focus:ring-blue-100"
+      >
+        {statusFilters.map((filter) => (
+          <option key={filter.value} value={filter.value}>
+            {filter.label}
+          </option>
+        ))}
+      </select>
+
+      <ChevronDown
+        size={17}
+        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
+      />
+    </label>
+  );
+}
+
+function InfoCard({ label, value, tone = "default" }) {
+  const styles = {
+    default: "bg-white text-slate-950 ring-blue-100",
+    blue: "bg-blue-50 text-[#0B63CE] ring-blue-100",
+    amber: "bg-amber-50 text-amber-800 ring-amber-100",
+    emerald: "bg-emerald-50 text-emerald-800 ring-emerald-100",
+  };
+
+  const labelStyles = {
+    default: "text-slate-400",
+    blue: "text-[#0B63CE]",
+    amber: "text-amber-600",
+    emerald: "text-emerald-600",
+  };
 
   return (
-    <div className="flex flex-col gap-3 border-t border-blue-100 bg-white px-5 py-4 md:flex-row md:items-center md:justify-between">
-      <p className="text-sm text-slate-500">
-        Halaman <span className="font-semibold text-slate-950">{currentPage}</span> dari{" "}
-        <span className="font-semibold text-slate-950">{totalPages}</span>
-      </p>
+    <div className={`min-w-0 rounded-2xl px-4 py-3 ring-1 ${styles[tone]}`}>
+      <p className={`text-xs font-medium ${labelStyles[tone]}`}>{label}</p>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
-          disabled={currentPage === 1}
-          className="rounded-2xl border border-blue-100 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Sebelumnya
-        </button>
-
-        {pages.map((page) => {
-          const isActive = currentPage === page;
-          return (
-            <button
-              key={page}
-              type="button"
-              onClick={() => onPageChange(page)}
-              className={`flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-semibold transition ${
-                isActive
-                  ? "bg-[#0B63CE] text-white shadow-lg shadow-blue-600/20"
-                  : "bg-blue-50 text-[#0B63CE] ring-1 ring-blue-100 hover:bg-blue-100"
-              }`}
-            >
-              {page}
-            </button>
-          );
-        })}
-
-        <button
-          type="button"
-          onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
-          disabled={currentPage === totalPages}
-          className="rounded-2xl border border-blue-100 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Berikutnya
-        </button>
-      </div>
+      <p className="mt-1 truncate text-sm font-semibold">{value}</p>
     </div>
   );
 }
 
-function EvaluationCard({ item }) {
+function EvaluationRow({ item }) {
   const total = calculateTotal(item.scores);
   const completedCriteria = countCompletedCriteria(item.scores);
   const complete = isAssessmentComplete(item.scores, item.feedback);
+  const draft = hasDraftValue(item.scores, item.feedback);
   const actionLabel = getActionLabel(item, item.scores, item.feedback);
+  const hasAnyScore = completedCriteria > 0;
 
   return (
-    <article className="rounded-[2rem] border border-blue-100 bg-white p-5 shadow-sm shadow-blue-100/20 transition hover:border-blue-200 hover:shadow-md hover:shadow-blue-100/40">
-      <div className="flex min-w-0 gap-5">
-        <img
-          src={item.studentPhoto}
-          alt={item.studentName}
-          className="h-28 w-28 shrink-0 rounded-[1.75rem] object-cover ring-1 ring-blue-100"
-        />
+    <article className="group relative border-b-2 border-slate-100 bg-white px-5 py-5 transition last:border-b-0 hover:bg-blue-50/50">
+      <span className="absolute left-0 top-5 hidden h-[calc(100%-2.5rem)] w-1.5 rounded-r-full bg-[#0B63CE] group-hover:block" />
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <TypeBadge type={item.type} />
-            <StatusBadge status={item.status} statusType={item.statusType} />{complete && (
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-[#0B63CE] ring-1 ring-blue-100">
-                  Nilai lengkap
-                </span>
-              )}
-          </div>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center">
+          <img
+            src={item.studentPhoto}
+            alt={item.studentName}
+            className="h-24 w-24 shrink-0 rounded-[1.5rem] object-cover ring-1 ring-blue-100 sm:h-28 sm:w-28"
+          />
 
-          <h3 className="mt-3 text-lg font-semibold tracking-tight text-slate-950">
-            {item.studentName}
-          </h3>
-          <p className="mt-1 text-sm text-slate-500">
-            NIM {item.nim} • {item.role}
-          </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <TypeBadge type={item.type} />
+              <StatusBadge status={item.status} statusType={item.statusType} />
+              <ProgressBadge isComplete={complete} hasDraft={draft} />
 
-          <div className="mt-3">
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
-              Judul {item.type === "SUP" ? "Proposal" : "Skripsi"}
-            </p>
-            <p className="mt-1.5 line-clamp-2 text-sm font-semibold leading-6 text-slate-950">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                {item.role}
+              </span>
+            </div>
+
+            <h3 className="mt-3 line-clamp-1 text-xl font-semibold leading-7 tracking-[-0.02em] text-slate-950 group-hover:text-[#0B63CE]">
+              <span>{item.studentName}</span>
+              <span className="text-slate-400"> - </span>
+              <span className="whitespace-nowrap text-slate-500">
+                {item.nim}
+              </span>
+            </h3>
+
+            <p className="mt-1 line-clamp-2 max-w-3xl text-base font-medium leading-6 text-slate-700">
               {item.title}
             </p>
           </div>
         </div>
-      </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-4">
-        <div className="rounded-2xl bg-[#F8FBFF] p-4 ring-1 ring-blue-100/70">
-          <p className="text-xs text-slate-400">Jadwal</p>
-          <p className="mt-1 text-sm font-semibold text-slate-950">
-            {item.day}, {item.date}
-          </p>
-        </div>
-        <div className="rounded-2xl bg-[#F8FBFF] p-4 ring-1 ring-blue-100/70">
-          <p className="text-xs text-slate-400">Waktu</p>
-          <p className="mt-1 text-sm font-semibold text-slate-950">{item.time}</p>
-        </div>
-        <div className="rounded-2xl bg-[#F8FBFF] p-4 ring-1 ring-blue-100/70">
-          <p className="text-xs text-slate-400">Kriteria Terisi</p>
-          <p className="mt-1 text-sm font-semibold text-slate-950">
-            {completedCriteria}/{assessmentCriteria.length}
-          </p>
-        </div>
-        <div className="rounded-2xl bg-[#F8FBFF] p-4 ring-1 ring-blue-100/70">
-          <p className="text-xs text-slate-400">Total Sementara</p>
-          <p className="mt-1 text-sm font-semibold text-slate-950">
-            {completedCriteria > 0 ? total : "—"}
-          </p>
+        <div className="flex w-fit shrink-0 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-[#0B63CE] ring-1 ring-blue-100 xl:mt-1">
+          {item.documentStatus}
         </div>
       </div>
 
-      <div className="mt-5 flex flex-col gap-4 border-t border-blue-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-          <span className="rounded-full bg-white px-3 py-1 ring-1 ring-slate-200">
-            {item.documentStatus}
-          </span>
-          <span
-            className={`rounded-full px-3 py-1 ring-1 ${
-              item.feedback.trim()
-                ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
-                : "bg-amber-50 text-amber-700 ring-amber-100"
-            }`}
-          >
-            Feedback {item.feedback.trim() ? "sudah terisi" : "belum terisi"}
-          </span>
-        </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <InfoCard label="Jadwal" value={`${item.day}, ${item.date}`} />
+        <InfoCard label="Waktu" value={item.time} />
+        <InfoCard
+          label="Kriteria Terisi"
+          value={`${completedCriteria}/${assessmentCriteria.length}`}
+          tone={complete ? "emerald" : draft ? "blue" : "default"}
+        />
+        <InfoCard
+          label="Total Sementara"
+          value={hasAnyScore ? total : "—"}
+          tone={hasAnyScore ? "blue" : "default"}
+        />
+      </div>
+
+      <div className="mt-5 flex flex-col gap-4 border-t border-blue-100 pt-5 md:flex-row md:items-center md:justify-between">
+        <p className="max-w-xl text-sm leading-6 text-slate-500">
+          {getRowDescription(item, complete, draft)}
+        </p>
 
         <Link
           href={`/reviewer/evaluations/${item.id}`}
-          className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold shadow-lg transition ${
+          className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-semibold text-white shadow-lg transition ${
             item.statusType === "evaluation"
-              ? "bg-red-600 text-white shadow-red-600/20 hover:bg-red-700"
-              : "bg-[#0B63CE] text-white shadow-blue-600/20 hover:bg-blue-700"
+              ? "bg-red-600 shadow-red-600/20 hover:bg-red-700"
+              : "bg-[#0B63CE] shadow-blue-600/20 hover:bg-blue-700"
           }`}
         >
+          <MessageSquareText size={16} />
           {actionLabel}
           <ChevronRight size={16} />
         </Link>
@@ -287,40 +367,156 @@ function EvaluationCard({ item }) {
   );
 }
 
+function Pagination({
+  currentPage,
+  totalPages,
+  startItem,
+  endItem,
+  totalItems,
+  onPrevious,
+  onNext,
+  onPageChange,
+}) {
+  const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  return (
+    <div className="flex flex-col gap-4 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm text-slate-500">
+        Menampilkan{" "}
+        <span className="font-semibold text-slate-800">{startItem}</span>
+        {" - "}
+        <span className="font-semibold text-slate-800">{endItem}</span>
+        {" dari "}
+        <span className="font-semibold text-slate-800">{totalItems}</span>
+        {" data"}
+      </p>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={currentPage === 1}
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-100 bg-white text-slate-500 transition hover:bg-blue-50 hover:text-[#0B63CE] disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300"
+          aria-label="Halaman sebelumnya"
+        >
+          <ChevronLeft size={18} />
+        </button>
+
+        <div className="flex items-center gap-1">
+          {pages.map((page) => (
+            <button
+              key={page}
+              type="button"
+              onClick={() => onPageChange(page)}
+              className={`flex h-10 min-w-10 items-center justify-center rounded-2xl px-3 text-sm font-semibold transition ${
+                currentPage === page
+                  ? "bg-[#0B63CE] text-white shadow-lg shadow-blue-600/20"
+                  : "text-slate-500 hover:bg-blue-50 hover:text-[#0B63CE]"
+              }`}
+            >
+              {page}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={currentPage === totalPages}
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-100 bg-white text-slate-500 transition hover:bg-blue-50 hover:text-[#0B63CE] disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300"
+          aria-label="Halaman berikutnya"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function EmptyState() {
   return (
-    <div className="flex min-h-[420px] w-full flex-col items-center justify-center rounded-[2rem] border border-dashed border-blue-200 bg-white p-10 text-center shadow-sm shadow-blue-100/20">
-      <div className="flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-blue-50 text-[#0B63CE] ring-1 ring-blue-100">
-        <Filter size={34} />
+    <div className="px-6 py-14 text-center">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-blue-50 text-[#0B63CE] ring-1 ring-blue-100">
+        <Filter size={24} />
       </div>
-      <p className="mt-6 text-lg font-semibold text-slate-950">
-        Tidak ada penilaian yang sesuai filter
-      </p>
-      <p className="mt-2 max-w-lg text-sm leading-6 text-slate-500">
-        Coba ubah filter status atau kata kunci pencarian untuk melihat sidang lainnya.
+
+      <h3 className="mt-4 text-base font-semibold text-slate-950">
+        Tidak ada penilaian yang sesuai
+      </h3>
+
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+        Coba ubah filter status atau kata kunci pencarian untuk melihat sidang
+        lainnya.
       </p>
     </div>
   );
 }
 
+function WarningNotice({ count }) {
+  if (count === 0) return null;
+
+  return (
+    <section className="rounded-[1.5rem] border border-amber-100 bg-amber-50 p-5 shadow-sm shadow-amber-100/30">
+      <div className="flex items-start gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-600 ring-1 ring-amber-100">
+          <AlertCircle size={22} />
+        </div>
+
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-amber-900">
+            Ada penilaian yang belum lengkap
+          </h2>
+
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-amber-700">
+            {count} sidang masih membutuhkan nilai atau feedback final dari
+            Anda.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function ReviewerEvaluationsPage() {
-  const ITEMS_PER_PAGE = 5;
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
 
   const filteredItems = useMemo(() => {
     return evaluationItems.filter((item) => {
-      const matchStatus = statusFilter === "all" || item.statusType === statusFilter;
-      const searchText = `${item.studentName} ${item.nim} ${item.title} ${item.type} ${item.role}`.toLowerCase();
+      const matchStatus =
+        statusFilter === "all" || item.statusType === statusFilter;
+
+      const searchText =
+        `${item.studentName} ${item.nim} ${item.title} ${item.type} ${item.role}`.toLowerCase();
+
       const matchQuery = searchText.includes(query.toLowerCase());
+
       return matchStatus && matchQuery;
     });
   }, [query, statusFilter]);
 
-  const totalPages = Math.max(Math.ceil(filteredItems.length / ITEMS_PER_PAGE), 1);
+  const incompleteCount = evaluationItems.filter(
+    (item) => !isAssessmentComplete(item.scores, item.feedback),
+  ).length;
+
+  const totalPages = Math.max(
+    Math.ceil(filteredItems.length / ITEMS_PER_PAGE),
+    1,
+  );
+
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedItems = filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedItems = filteredItems.slice(
+    startIndex,
+    startIndex + ITEMS_PER_PAGE,
+  );
+
+  const startItem =
+    filteredItems.length === 0
+      ? 0
+      : (currentPage - 1) * ITEMS_PER_PAGE + 1;
+
+  const endItem = Math.min(currentPage * ITEMS_PER_PAGE, filteredItems.length);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -339,84 +535,68 @@ export default function ReviewerEvaluationsPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-slate-950 md:text-3xl">
             Penilaian & Feedback
           </h1>
+
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 md:text-base">
-            Pilih sidang yang ingin dinilai, lalu masuk ke halaman fokus penilaian untuk mengisi nilai dan feedback final.
+            Pilih sidang yang ingin dinilai, lalu masuk ke halaman fokus
+            penilaian untuk mengisi nilai dan feedback final.
           </p>
         </div>
 
-        <div className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-[#0B63CE] shadow-sm ring-1 ring-blue-100">
+        <div className="w-fit rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-[#0B63CE] shadow-sm ring-1 ring-blue-100">
           Semester Genap 2025/2026
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-blue-100 bg-white p-5 shadow-sm shadow-blue-100/30">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <p className="text-sm font-medium text-[#0B63CE]">Daftar Penilaian</p>
-            <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
-              Pilih sidang yang ingin dinilai
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-              Halaman ini hanya menampilkan sidang yang masih perlu dinilai. Sidang yang selesai dapat dilihat di Daftar Sidang.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 md:flex-row md:items-end">
-            <label className="block md:w-56">
-              <span className="mb-1.5 block text-xs font-medium text-slate-400">Status</span>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="h-11 w-full rounded-2xl border border-blue-100 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#0B63CE] focus:ring-4 focus:ring-blue-100"
-              >
-                {statusFilters.map((filter) => (
-                  <option key={filter.value} value={filter.value}>
-                    {filter.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block md:w-80">
-              <span className="mb-1.5 block text-xs font-medium text-slate-400">Pencarian</span>
-              <div className="flex h-11 items-center gap-3 rounded-2xl border border-blue-100 bg-[#F8FBFF] px-4">
-                <Search size={17} className="text-slate-400" />
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Cari nama, NIM, atau judul..."
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-                />
-              </div>
-            </label>
-          </div>
-        </div>
-      </section>
-
       <section className="overflow-hidden rounded-[2rem] border border-blue-100 bg-white shadow-sm shadow-blue-100/30">
-        <div className="min-h-[560px] bg-[#F8FBFF] p-4">
-          {filteredItems.length > 0 ? (
-            <div className="space-y-3">
-              {paginatedItems.map((item) => (
-                <EvaluationCard key={item.id} item={item} />
-              ))}
+        <div className="border-b border-blue-100 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-lg font-semibold tracking-tight text-slate-950">
+                  Daftar Penilaian
+                </h2>
+
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-[#0B63CE] ring-1 ring-blue-100">
+                  {filteredItems.length} sidang ditemukan
+                </span>
+              </div>
+
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                Cari sidang berdasarkan nama, NIM, judul, atau peran.
+              </p>
             </div>
-          ) : (
-            <div className="flex min-h-[520px] items-center justify-center">
-              <EmptyState />
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <SearchInput value={query} onChange={setQuery} />
+              <StatusFilter value={statusFilter} onChange={setStatusFilter} />
             </div>
-          )}
+          </div>
         </div>
 
-        <div className="min-h-[76px]">
-          {filteredItems.length > 0 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-            />
-          )}
-        </div>
+        {filteredItems.length > 0 ? (
+          <div>
+            {paginatedItems.map((item) => (
+              <EvaluationRow key={item.id} item={item} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState />
+        )}
+
+        {filteredItems.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            startItem={startItem}
+            endItem={endItem}
+            totalItems={filteredItems.length}
+            onPrevious={() => setCurrentPage((page) => Math.max(page - 1, 1))}
+            onNext={() =>
+              setCurrentPage((page) => Math.min(page + 1, totalPages))
+            }
+            onPageChange={setCurrentPage}
+          />
+        )}
       </section>
     </div>
   );

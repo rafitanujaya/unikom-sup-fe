@@ -810,7 +810,7 @@ function ApprovalStatusBadge({ status }) {
       }`}
     >
       {status}
-    </span>
+    </span> 
   );
 }
 
